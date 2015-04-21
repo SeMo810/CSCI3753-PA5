@@ -13,12 +13,12 @@ LFLAGS = -g -Wall -Wextra
 
 .PHONY: all clean
 
-all: pa5-endfs
+all: pa5-encfs
 
-pa5-endfs: pa5-endfs.o aes-crypt.o
+pa5-encfs: pa5-encfs.o aes-crypt.o
 	$(CC) $(LFLAGS) $^ -o $@ $(LLIBSFUSE) $(LLIBSOPENSSL)
 
-pa5-endfs.o: pa5-endfs.c
+pa5-encfs.o: pa5-encfs.c
 	$(CC) $(CFLAGS) $(CFLAGSFUSE) $<
 
 aes-crypt.o: aes-crypt.c aes-crypt.h
@@ -26,4 +26,4 @@ aes-crypt.o: aes-crypt.c aes-crypt.h
 
 clean:
 	rm -f *.o
-	rm -f pa5-endfs
+	rm -f pa5-encfs

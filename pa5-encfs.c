@@ -18,6 +18,7 @@
 #endif
 
 #include <fuse.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -393,6 +394,13 @@ static struct fuse_operations pa5_oper = {
 
 int main(int argc, char **argv)
 {
+	if (argc != 4)
+	{
+		printf("Usage: ./pa5-encfs <Key Phrase> <Mirror Directory> <Mount Point>\n");
+		exit(1);
+	}
+	
+	
 	umask(0);
 	return fuse_main(argc, argv, &pa5_oper, NULL);
 }
