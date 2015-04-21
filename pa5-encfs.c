@@ -18,7 +18,7 @@
 #endif
 
 #include <fuse.h>
-#include <stdlib.h>
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -29,6 +29,43 @@
 #ifdef HAVE_SETXATTR
 #include <sys/xattr.h>
 #endif
+
+#include "aes-crypt.h"
+
+/* Global settings */
+char *s_rootpath;
+char *s_password;
+/* =============== */
+
+/* Helper Functions */
+
+/* Checks if a file is encrypted, 1 if encrypted or 0 otherwise */
+int is_file_encrpyted(const char *path)
+{
+	char value[5];
+	getxattr(path, "user.encrypted", value, 5);
+	return (strcmp(value, "true") == 0);
+}
+
+/* Adds the encryption attr to the file, returns 1 on success, 0 on failure */
+int add_encrypted_attr(const char *path)
+{
+	return (setxattr(path, "user.encrypted", "true", 5, 0) == 0);
+}
+
+/* Gets the path the with provided root folder, be sure to free the returned string */
+char* get_root_path(const char *path)
+{
+	size_t len = strlen(path) + strlen(s_rootpath) + 1;
+	char* retdir = (char*)malloc(len);
+	
+	strcpy(retdir, s_rootpath);
+	strcat(retdir, path);
+
+	return retdir;
+}
+
+/* ================ */
 
 static int pa5_getattr(const char *path, struct stat *stbuf)
 {
@@ -394,13 +431,27 @@ static struct fuse_operations pa5_oper = {
 
 int main(int argc, char **argv)
 {
-	if (argc != 4)
+	if (argc < 4)
 	{
-		printf("Usage: ./pa5-encfs <Key Phrase> <Mirror Directory> <Mount Point>\n");
-		exit(1);
+		printf("Usage: ./pa5-encfs [Options] <Key Phrase> <Mirror Directory> <Mount Point>\n");
+		return EXIT_FAILURE;
+	}
+
+	if ((s_rootpath = realpath(argv[argc - 1], NULL)) == NULL)
+	{
+		printf("ERROR: Please enter a valid mirror directory name.\n");
+		return EXIT_FAILURE;
 	}
 	
-	
+	if ((s_password = argv[argc - 3]) == NULL)
+	{
+		printf("ERROR: Please enter a valid password.\n");
+		return EXIT_FAILURE;
+	}
+
+	argv[argc - 3] = argv[argc - 2];
+	argc -= 2;
+
 	umask(0);
 	return fuse_main(argc, argv, &pa5_oper, NULL);
 }
