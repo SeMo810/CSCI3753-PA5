@@ -8,4 +8,7 @@
 #define FUSE_USE_VERSION 28
 #define HAVE_SETXATTR
 
-
+int main(int argc, char** argv)
+{
+	return 0;
+}
