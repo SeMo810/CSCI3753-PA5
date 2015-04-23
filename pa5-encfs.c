@@ -105,6 +105,8 @@ static int pa5_readlink(const char *path, char *buf, size_t size)
 static int pa5_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                        off_t offset, struct fuse_file_info *fi)
 {
+	path = get_root_path(path);
+
         DIR *dp;
         struct dirent *de;
 
@@ -434,6 +436,13 @@ int main(int argc, char **argv)
 	if (argc < 4)
 	{
 		printf("Usage: ./pa5-encfs [Options] <Key Phrase> <Mirror Directory> <Mount Point>\n");
+		return EXIT_FAILURE;
+	}
+
+	/* Checks that there are no hyphens in the last 2 options (breaks if there are) */
+	if (argv[argc - 1][0] == '-' || argv[argc - 2][0] == '-')
+	{
+		printf("ERROR: The mount point and mirror directories cannot start with a hyphen.\n");
 		return EXIT_FAILURE;
 	}
 
