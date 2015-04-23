@@ -48,6 +48,8 @@
 #include <sys/xattr.h>
 #endif
 
+#include "aes-crypt.h"
+
 struct pa5_state
 {
 	char *rootdir;
@@ -55,11 +57,27 @@ struct pa5_state
 };
 #define STATE_DATA ((struct pa5_state *) fuse_get_context()->private_data)
 
+/* Helper Functions */
 static void get_full_path(char fpath[512], const char *path)
 {
 	strcpy(fpath, STATE_DATA->rootdir);
 	strcat(fpath, path);
 }
+
+/* Sets the file to be encrypted, returns 1 on success. */
+static int add_encrypted_flag(const char* path)
+{
+	return (setxattr(path, "user.encrypted", "true", 5, 0) == 0);
+}
+
+/* Gets the encryped status of the file, returns 1 if encrypted, 0 otherwise. */
+static int is_encrypted(const char* path)
+{
+	char value[5];
+	getxattr(path, "user.encrypted", value, 5);
+	return (strcmp(value, "true") == 0);
+}
+/* ================================ */
 
 static int xmp_getattr(const char *path, struct stat *stbuf)
 {
@@ -320,14 +338,17 @@ static int xmp_open(const char *path, struct fuse_file_info *fi)
 static int xmp_read(const char *path, char *buf, size_t size, off_t offset,
 		    struct fuse_file_info *fi)
 {
-	int fd;
 	int res;
 
 	char fpath[512] = { 0 };
 	get_full_path(fpath, path);
+	char tmppath[512] = { 0 };
+	get_full_path(tmppath, ".xmp_crypt_tmp");
+
+	int fd;
 
 	(void) fi;
-	fd = open(fpath, O_RDONLY);
+	fd = open(path, O_RDONLY);
 	if (fd == -1)
 		return -errno;
 
@@ -347,6 +368,8 @@ static int xmp_write(const char *path, const char *buf, size_t size,
 
 	char fpath[512] = { 0 };
 	get_full_path(fpath, path);
+
+	printf("FUNCTION: write\n");
 
 	(void) fi;
 	fd = open(fpath, O_WRONLY);
@@ -388,6 +411,8 @@ static int xmp_create(const char* path, mode_t mode, struct fuse_file_info* fi)
 		return -errno;
 
 	close(res);
+
+	add_encrypted_flag(fpath);
 
 	return 0;
 }
