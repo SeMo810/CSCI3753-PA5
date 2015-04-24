@@ -343,44 +343,139 @@ static int xmp_read(const char *path, char *buf, size_t size, off_t offset,
 	char fpath[512] = { 0 };
 	get_full_path(fpath, path);
 	char tmppath[512] = { 0 };
-	get_full_path(tmppath, ".xmp_crypt_tmp");
-
-	int fd;
+	get_full_path(tmppath, "/.xmp_crypt_tmp");
 
 	(void) fi;
-	fd = open(path, O_RDONLY);
-	if (fd == -1)
-		return -errno;
 
-	res = pread(fd, buf, size, offset);
-	if (res == -1)
-		res = -errno;
+	if (is_encrypted(fpath))
+	{
+		FILE *in = fopen(fpath, "rb");
+		if (!in)
+		{
+			printf("ERROR: Could not open file for reading: %d.\n", -errno);
+			return -errno;
+		}
+		FILE *tmp = fopen(tmppath, "w");
+		if (!tmp)
+		{
+			fclose(in);
+			printf("ERROR: Could not open temporary decryption file: %d.\n", -errno);
+			return -errno;
+		}
 
-	close(fd);
+		fseek(in, 0L, SEEK_END);
+		int sz = ftell(in); /* Get the file size, if there is nothing, then dont decrypt it. */
+		fseek(in, 0L, SEEK_SET);
+		if (sz != 0 && !do_crypt(in, tmp, 0, STATE_DATA->password))
+		{
+			fclose(in);
+			fclose(tmp);
+			printf("ERROR: do_crypt failed to decrypt a file: %d.\n", -errno);
+			remove(tmppath);
+			return -errno;
+		}
+
+		fclose(in);
+		fclose(tmp);
+
+		int fd = open(tmppath, O_RDONLY);
+		if (fd == -1)
+		{
+			printf("ERROR: Could not open temporary decryption file for readback: %d.\n", -errno);
+			remove(tmppath);
+			return -errno;
+		}
+
+		res = pread(fd, buf, size, offset);
+		if (res == -1)
+			res = -errno;
+
+		close(fd);
+		remove(tmppath);
+	}
+	else
+	{
+		int fd = open(fpath, O_RDONLY);
+		if (fd == -1)
+		{
+			printf("ERROR: Could not open file for reading: %d.\n", -errno);
+			return -errno;
+		}
+
+		res = pread(fd, buf, size, offset);
+		if (res == -1)
+			res = -errno;
+
+		close(fd);
+	}
+
 	return res;
 }
 
 static int xmp_write(const char *path, const char *buf, size_t size,
 		     off_t offset, struct fuse_file_info *fi)
 {
-	int fd;
 	int res;
 
 	char fpath[512] = { 0 };
 	get_full_path(fpath, path);
-
-	printf("FUNCTION: write\n");
+	char tmppath[512] = { 0 };
+	get_full_path(tmppath, "/.xmp_crypt_tmp");
 
 	(void) fi;
-	fd = open(fpath, O_WRONLY);
-	if (fd == -1)
-		return -errno;
 
-	res = pwrite(fd, buf, size, offset);
-	if (res == -1)
-		res = -errno;
+	/*if (is_encrypted(fpath))
+	{
+		int fd = open(tmppath, O_WRONLY);
+		if (fd == -1)
+			return -errno;
 
-	close(fd);
+		res = pwrite(fd, buf, size, offset);
+		if (res == -1)
+			return -errno;
+
+		close(fd);
+
+		FILE *in = fopen(fpath, "rb");
+		if (!in)
+		{
+			printf("ERROR: Could not open file for writing: %d.\n", -errno);
+			return -errno;
+		}
+		FILE *tmp = fopen(tmppath, "wb+");
+		if (!tmp)
+		{
+			fclose(in);
+			printf("ERROR: Could not open temporary encryption file: %d.\n", -errno);
+			return -errno;
+		}
+
+		if (!do_crypt(tmp, in, 1, STATE_DATA->password))
+		{
+			fclose(in);
+			fclose(tmp);
+			printf("ERROR: do_crypt failed to encrypt a file: %d.\n", -errno);
+			remove(tmppath);
+			return -errno;
+		}
+
+		fclose(in);
+		fclose(tmp);
+		remove(tmppath);
+	}
+	else
+	{*/
+		int fd = open(fpath, O_WRONLY);
+		if (fd == -1)
+			return -errno;
+
+		res = pwrite(fd, buf, size, offset);
+		if (res == -1)
+			res = -errno;
+
+		close(fd);
+	/*}*/
+
 	return res;
 }
 
