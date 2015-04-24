@@ -430,27 +430,53 @@ static int xmp_write(const char *path, const char *buf, size_t size,
 		FILE *tmp = fopen(tmppath, "w+");
 		if (!tmp)
 		{
-			printf("Could not open temp file to write to: %d.\n", -errno);
+			printf("Could not open temp file to write to: %d.\n", errno);
 			return -errno;
 		}
+
+		FILE *out = fopen(fpath, "rb");
+		if (!out)
+		{
+			fclose(tmp);
+			printf("Could not open file for reading in existing data: %d.\n", errno);
+			return -errno;
+		}
+		fseek(out, 0L, SEEK_END);
+		int len = ftell(out);
+		printf("DEBUG: reporting length of %d\n", len);
+		fseek(out, 0L, SEEK_SET);
+		if (len > 0) /* If there is already existing data. */
+		{
+			if (!do_crypt(out, tmp, 0, STATE_DATA->password))
+			{
+				fclose(tmp);
+				fclose(out);
+				remove(tmppath);
+				printf("Failed to decrypt existing data: %d.\n", errno);
+				return -errno;
+			}
+		}
+		fseek(tmp, len, SEEK_SET);
 		fputs(buf, tmp);
 		fclose(tmp);
+		fclose(out);
 		tmp = NULL;
+		out = NULL;
 
 		tmp = fopen(tmppath, "r");
 		if (!tmp)
 		{
 			printf("Could not open temp file for reading out of: %d.\n", -errno);
-			// remove(tmppath);
+			remove(tmppath);
 			return -errno;
 		}
 		fseek(tmp, 0L, SEEK_SET);
 
-		FILE *out = fopen(fpath, "wb");
+		out = fopen(fpath, "wb");
 		if (!out)
 		{
 			fclose(tmp);
-			// remove(tmppath);
+			remove(tmppath);
 			printf("Could not open output file for writing: %d.\n", -errno);
 			return -errno;
 		}
@@ -458,53 +484,14 @@ static int xmp_write(const char *path, const char *buf, size_t size,
 		{
 			fclose(tmp);
 			fclose(out);
-			// remove(tmppath);
+			remove(tmppath);
 			printf("Could not encrypt file: %d.\n", -errno);
 			return -errno;
 		}
 
 		fclose(tmp);
 		fclose(out);
-		// remove(tmppath);
-
-		//FILE *out = fopen(fpath, "w");
-
-		/*int fd = open(tmppath, O_WRONLY | O_TRUNC);
-		if (fd == -1)
-			return -errno;
-
-		res = pwrite(fd, buf, size, 0);
-		if (res == -1)
-			return -errno;
-
-		close(fd);
-
-		FILE *out = fopen(fpath, "wb");
-		if (!out)
-		{
-			printf("ERROR: Could not open file for writing: %d.\n", -errno);
-			return -errno;
-		}
-		FILE *tmp = fopen(tmppath, "r");
-		if (!tmp)
-		{
-			fclose(out);
-			printf("ERROR: Could not open temporary encryption file: %d.\n", -errno);
-			return -errno;
-		}
-
-		if (!do_crypt(tmp, out, 1, STATE_DATA->password))
-		{
-			fclose(out);
-			fclose(tmp);
-			printf("ERROR: do_crypt failed to encrypt a file: %d.\n", -errno);
-			remove(tmppath);
-			return -errno;
-		}
-
-		fclose(out);
-		fclose(tmp);
-		remove(tmppath);*/
+		remove(tmppath);
 	}
 	else
 	{
